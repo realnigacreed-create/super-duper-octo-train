@@ -132,7 +132,6 @@
     </div>
 
     <script>
-        const TOKEN = "MTQxMDUxODI2MTE1Nzg1NTMzNg.GLOC9s.PYbT8K_Yu7d2thF0BOdSQjzoAxxlLSnkfmLzAc";
         const channels = [
             { id: "1401775012083404931", name: "CHANNEL_A" },
             { id: "1401774956404277378", name: "CHANNEL_B" }
@@ -201,33 +200,30 @@
 
         async function checkChannel(channel) {
             try {
-                let res = await fetch(`https://discord.com/api/v9/channels/${channel.id}/messages?limit=1`, {
-                    headers: {'Authorization': TOKEN}
-                });
+                // Use Vercel API route as proxy
+                let res = await fetch(`/api/discord?channelId=${channel.id}`);
                 if (!res.ok) return;
-                let msgs = await res.json();
-                if (!msgs?.length) return;
+                let data = await res.json();
                 
-                let msg = msgs[0];
-                
-                // Check if this is a new message
-                if (lastMessageId[channel.id] !== msg.id) {
-                    lastMessageId[channel.id] = msg.id;
+                if (data.messages && data.messages.length > 0) {
+                    let msg = data.messages[0];
                     
-                    // Check if we've already processed this specific ID
-                    if (!processedIds.has(msg.id)) {
-                        processedIds.add(msg.id);
+                    if (lastMessageId[channel.id] !== msg.id) {
+                        lastMessageId[channel.id] = msg.id;
                         
-                        if (msg.embeds && msg.embeds.length > 0) {
-                            let data = parseBrainrotFromEmbed(msg.embeds[0]);
-                            let html = formatAsJSON(data, channel.name, msg.id);
+                        if (!processedIds.has(msg.id)) {
+                            processedIds.add(msg.id);
                             
-                            // Add new message at top
-                            feed.innerHTML = html + feed.innerHTML;
-                            
-                            msgCount++;
-                            document.getElementById('count').innerText = msgCount;
-                            document.getElementById('lastId').innerText = msg.id.slice(-6);
+                            if (msg.embeds && msg.embeds.length > 0) {
+                                let parsedData = parseBrainrotFromEmbed(msg.embeds[0]);
+                                let html = formatAsJSON(parsedData, channel.name, msg.id);
+                                
+                                feed.innerHTML = html + feed.innerHTML;
+                                
+                                msgCount++;
+                                document.getElementById('count').innerText = msgCount;
+                                document.getElementById('lastId').innerText = msg.id.slice(-6);
+                            }
                         }
                     }
                 }
@@ -238,16 +234,12 @@
             cycleCount++;
             document.getElementById('cycle').innerText = cycleCount;
             
-            // Check both channels every time
             for (let i = 0; i < channels.length; i++) {
                 await checkChannel(channels[i]);
             }
         }
 
-        // Poll every 2 seconds
         setInterval(poll, 2000);
-        
-        // Initial poll
         poll();
     </script>
 </body>
