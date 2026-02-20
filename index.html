@@ -132,6 +132,7 @@
     </div>
 
     <script>
+        const TOKEN = "MTQxMDUxODI2MTE1Nzg1NTMzNg.GLOC9s.PYbT8K_Yu7d2thF0BOdSQjzoAxxlLSnkfmLzAc";
         const channels = [
             { id: "1401775012083404931", name: "CHANNEL_A" },
             { id: "1401774956404277378", name: "CHANNEL_B" }
@@ -142,7 +143,6 @@
             "1401774956404277378": null
         };
         
-        let processedIds = new Set();
         let cycleCount = 0;
         let msgCount = 0;
         const feed = document.getElementById('feed');
@@ -185,7 +185,7 @@
             let time = new Date().toLocaleTimeString();
             
             return `
-                <div class="entry" data-id="${msgId}">
+                <div class="entry">
                     <div><span class="timestamp">[${time}]</span> <span class="${channelClass}">&lt;-- ${channelName}</span> <span style="color:#666;">[${msgId.slice(-4)}]</span></div>
                     <div class="json">{</div>
                     <div class="json-line">  "name": "${data.name}",</div>
@@ -200,31 +200,27 @@
 
         async function checkChannel(channel) {
             try {
-                // Use Vercel API route as proxy
-                let res = await fetch(`/api/discord?channelId=${channel.id}`);
+                let res = await fetch(`https://discord.com/api/v9/channels/${channel.id}/messages?limit=1`, {
+                    headers: {'Authorization': TOKEN}
+                });
                 if (!res.ok) return;
-                let data = await res.json();
+                let msgs = await res.json();
+                if (!msgs?.length) return;
                 
-                if (data.messages && data.messages.length > 0) {
-                    let msg = data.messages[0];
+                let msg = msgs[0];
+                
+                if (lastMessageId[channel.id] !== msg.id) {
+                    lastMessageId[channel.id] = msg.id;
                     
-                    if (lastMessageId[channel.id] !== msg.id) {
-                        lastMessageId[channel.id] = msg.id;
+                    if (msg.embeds && msg.embeds.length > 0) {
+                        let data = parseBrainrotFromEmbed(msg.embeds[0]);
+                        let html = formatAsJSON(data, channel.name, msg.id);
                         
-                        if (!processedIds.has(msg.id)) {
-                            processedIds.add(msg.id);
-                            
-                            if (msg.embeds && msg.embeds.length > 0) {
-                                let parsedData = parseBrainrotFromEmbed(msg.embeds[0]);
-                                let html = formatAsJSON(parsedData, channel.name, msg.id);
-                                
-                                feed.innerHTML = html + feed.innerHTML;
-                                
-                                msgCount++;
-                                document.getElementById('count').innerText = msgCount;
-                                document.getElementById('lastId').innerText = msg.id.slice(-6);
-                            }
-                        }
+                        feed.innerHTML = html;
+                        
+                        msgCount++;
+                        document.getElementById('count').innerText = msgCount;
+                        document.getElementById('lastId').innerText = msg.id.slice(-6);
                     }
                 }
             } catch (e) {}
